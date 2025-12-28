@@ -1,4 +1,4 @@
-"""MinerU File转Markdown转换的API客户端。"""
+"""MinerU API client for File to Markdown conversion."""
 
 import asyncio
 import os
@@ -26,40 +26,40 @@ def singleton_func(cls):
 @singleton_func
 class MinerUClient:
     """
-    用于与 MinerU API 交互以将 File 转换为 Markdown 的客户端。
+    Client for interacting with MinerU API to convert File to Markdown.
     """
 
     def __init__(self, api_base: Optional[str] = None, api_key: Optional[str] = None):
         """
-        初始化 MinerU API 客户端。
+        Initialize MinerU API client.
 
         Args:
-            api_base: MinerU API 的基础 URL (默认: 从环境变量获取)
-            api_key: 用于向 MinerU 进行身份验证的 API 密钥 (默认: 从环境变量获取)
+            api_base: MinerU API base URL (default: from environment variable)
+            api_key: API key for authentication with MinerU (default: from environment variable)
         """
         self.api_base = api_base or config.MINERU_API_BASE
         self.api_key = api_key or config.MINERU_API_KEY
 
         if not self.api_key:
-            # 提供更友好的错误消息
+            # Provide friendlier error message
             raise ValueError(
-                "错误: MinerU API 密钥 (MINERU_API_KEY) 未设置或为空。\n"
-                "请确保已设置 MINERU_API_KEY 环境变量，例如:\n"
+                "Error: MinerU API key (MINERU_API_KEY) is not set or empty.\n"
+                "Please make sure MINERU_API_KEY environment variable is set, e.g.:\n"
                 "  export MINERU_API_KEY='your_actual_api_key'\n"
-                "或者，在项目根目录的 `.env` 文件中定义该变量。"
+                "Or define it in the `.env` file in the project root directory."
             )
 
     async def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         """
-        向 MinerU API 发出请求。
+        Make request to MinerU API.
 
         Args:
-            method: HTTP 方法 (GET, POST 等)
-            endpoint: API 端点路径 (不含基础 URL)
-            **kwargs: 传递给 aiohttp 请求的其他参数
+            method: HTTP method (GET, POST, etc.)
+            endpoint: API endpoint path (without base URL)
+            **kwargs: Other arguments passed to aiohttp request
 
         Returns:
-            dict: API 响应 (JSON 格式)
+            dict: API response (JSON format)
         """
         url = f"{self.api_base}{endpoint}"
         headers = {
@@ -72,21 +72,21 @@ class MinerUClient:
         else:
             kwargs["headers"] = headers
 
-        # 创建一个不包含授权信息的参数副本，用于日志记录
+        # Create a copy of arguments without auth info for logging
         log_kwargs = kwargs.copy()
         if "headers" in log_kwargs and "Authorization" in log_kwargs["headers"]:
             log_kwargs["headers"] = log_kwargs["headers"].copy()
-            log_kwargs["headers"]["Authorization"] = "Bearer ****"  # 隐藏API密钥
+            log_kwargs["headers"]["Authorization"] = "Bearer ****"  # Hide API key
 
-        config.logger.debug(f"API请求: {method} {url}")
-        config.logger.debug(f"请求参数: {log_kwargs}")
+        config.logger.debug(f"API Request: {method} {url}")
+        config.logger.debug(f"Request Params: {log_kwargs}")
 
         async with aiohttp.ClientSession() as session:
             async with session.request(method, url, **kwargs) as response:
                 response.raise_for_status()
                 response_json = await response.json()
 
-                config.logger.debug(f"API响应: {response_json}")
+                config.logger.debug(f"API Response: {response_json}")
 
                 return response_json
 
@@ -98,48 +98,48 @@ class MinerUClient:
         page_ranges: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        提交 File URL 以转换为 Markdown。支持单个URL或多个URL批量处理。
+        Submit File URL for conversion to Markdown. Supports single URL or batch processing of multiple URLs.
 
         Args:
-            urls: 可以是以下形式之一:
-                1. 单个URL字符串
-                2. 多个URL的列表
-                3. 包含URL配置的字典列表，每个字典包含:
-                   - url: File文件URL (必需)
-                   - is_ocr: 是否启用OCR (可选)
-                   - data_id: 文件数据ID (可选)
-                   - page_ranges: 页码范围 (可选)
-            enable_ocr: 是否为转换启用 OCR（所有文件的默认值）
-            language: 指定文档语言，默认 ch，中文
-            page_ranges: 指定页码范围，格式为逗号分隔的字符串。例如："2,4-6"表示选取第2页、第4页至第6页；"2--2"表示从第2页到倒数第2页。
+            urls: Can be one of the following forms:
+                1. Single URL string
+                2. List of multiple URLs
+                3. List of dictionaries containing URL configuration, each dictionary contains:
+                   - url: File URL (required)
+                   - is_ocr: Whether to enable OCR (optional)
+                   - data_id: File data ID (optional)
+                   - page_ranges: Page ranges (optional)
+            enable_ocr: Whether to enable OCR for conversion (default for all files)
+            language: Specify document language, default ch (Chinese)
+            page_ranges: Specify page ranges, format is comma-separated string. Example: "2,4-6" means select page 2, and pages 4 to 6; "2--2" means select from page 2 to the second to last page.
 
         Returns:
-            dict: 任务信息，包括batch_id
+            dict: Task information, including batch_id
         """
-        # 统计URL数量
+        # Count URLs
         url_count = 1
         if isinstance(urls, list):
             url_count = len(urls)
         config.logger.debug(
-            f"调用submit_file_url_task: {url_count}个URL, "
+            f"Calling submit_file_url_task: {url_count} URLs, "
             + f"ocr={enable_ocr}, "
             + f"language={language}"
         )
 
-        # 处理输入，确保我们有一个URL配置列表
+        # Process input, ensure we have a URL config list
         urls_config = []
 
-        # 转换输入为标准格式
+        # Convert input to standard format
         if isinstance(urls, str):
             urls_config.append(
                 {"url": urls, "is_ocr": enable_ocr, "page_ranges": page_ranges}
             )
 
         elif isinstance(urls, list):
-            # 处理URL列表或URL配置列表
+            # Process URL list or URL config list
             for i, url_item in enumerate(urls):
                 if isinstance(url_item, str):
-                    # 简单的URL字符串
+                    # Simple URL string
                     urls_config.append(
                         {
                             "url": url_item,
@@ -149,9 +149,9 @@ class MinerUClient:
                     )
 
                 elif isinstance(url_item, dict):
-                    # 含有详细配置的URL字典
+                    # URL dictionary with detailed config
                     if "url" not in url_item:
-                        raise ValueError(f"URL配置必须包含 'url' 字段: {url_item}")
+                        raise ValueError(f"URL config must contain 'url' field: {url_item}")
 
                     url_is_ocr = url_item.get("is_ocr", enable_ocr)
                     url_page_ranges = url_item.get("page_ranges", page_ranges)
@@ -162,11 +162,11 @@ class MinerUClient:
 
                     urls_config.append(url_config)
                 else:
-                    raise TypeError(f"不支持的URL配置类型: {type(url_item)}")
+                    raise TypeError(f"Unsupported URL config type: {type(url_item)}")
         elif isinstance(urls, dict):
-            # 单个URL配置字典
+            # Single URL config dict
             if "url" not in urls:
-                raise ValueError(f"URL配置必须包含 'url' 字段: {urls}")
+                raise ValueError(f"URL config must contain 'url' field: {urls}")
 
             url_is_ocr = urls.get("is_ocr", enable_ocr)
             url_page_ranges = urls.get("page_ranges", page_ranges)
@@ -177,31 +177,31 @@ class MinerUClient:
 
             urls_config.append(url_config)
         else:
-            raise TypeError(f"urls 必须是字符串、列表或字典，而不是 {type(urls)}")
+            raise TypeError(f"urls must be string, list or dict, not {type(urls)}")
 
-        # 构建API请求payload
-        files_payload = urls_config  # 与submit_file_task不同，这里直接使用URLs配置
+        # Build API request payload
+        files_payload = urls_config  # Unlike submit_file_task, use URL configs directly here
 
         payload = {
             "language": language,
             "files": files_payload,
         }
 
-        # 调用批量API
+        # Call batch API
         response = await self._request(
             "POST", "/api/v4/extract/task/batch", json=payload
         )
 
-        # 检查响应
+        # Check response
         if "data" not in response or "batch_id" not in response["data"]:
-            raise ValueError(f"提交批量URL任务失败: {response}")
+            raise ValueError(f"Failed to submit batch URL task: {response}")
 
         batch_id = response["data"]["batch_id"]
 
-        config.logger.info(f"开始处理 {len(urls_config)} 个文件URL")
-        config.logger.debug(f"批量URL任务提交成功，批次ID: {batch_id}")
+        config.logger.info(f"Starting processing {len(urls_config)} file URLs")
+        config.logger.debug(f"Batch URL task submitted successfully, batch ID: {batch_id}")
 
-        # 返回包含batch_id的响应和URLs信息
+        # Return response containing batch_id and URLs info
         result = {
             "data": {
                 "batch_id": batch_id,
@@ -209,10 +209,10 @@ class MinerUClient:
             }
         }
 
-        # 对于单个URL的情况，设置file_name以保持与原来返回格式的兼容性
+        # For single URL case, set file_name to keep compatibility with original return format
         if len(urls_config) == 1:
             url = urls_config[0]["url"]
-            # 从URL中提取文件名
+            # Extract filename from URL
             file_name = url.split("/")[-1]
             result["data"]["file_name"] = file_name
 
@@ -226,43 +226,43 @@ class MinerUClient:
         page_ranges: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        提交本地 File 文件以转换为 Markdown。支持单个文件路径或多个文件配置。
+        Submit local File for conversion to Markdown. Supports single file path or multiple file configs.
 
         Args:
-            files: 可以是以下形式之一:
-                1. 单个文件路径字符串
-                2. 多个文件路径的列表
-                3. 包含文件配置的字典列表，每个字典包含:
-                   - path/name: 文件路径或文件名
-                   - is_ocr: 是否启用OCR (可选)
-                   - data_id: 文件数据ID (可选)
-                   - page_ranges: 页码范围 (可选)
-            enable_ocr: 是否为转换启用 OCR（所有文件的默认值）
-            language: 指定文档语言，默认 ch，中文
-            page_ranges: 指定页码范围，格式为逗号分隔的字符串。例如："2,4-6"表示选取第2页、第4页至第6页；"2--2"表示从第2页到倒数第2页。
+            files: Can be one of the following forms:
+                1. Single file path string
+                2. List of multiple file paths
+                3. List of dictionaries containing file configuration, each dictionary contains:
+                   - path/name: File path or filename
+                   - is_ocr: Whether to enable OCR (optional)
+                   - data_id: File data ID (optional)
+                   - page_ranges: Page ranges (optional)
+            enable_ocr: Whether to enable OCR for conversion (default for all files)
+            language: Specify document language, default ch (Chinese)
+            page_ranges: Specify page ranges, format is comma-separated string. Example: "2,4-6" means select page 2, and pages 4 to 6; "2--2" means select from page 2 to the second to last page.
 
         Returns:
-            dict: 任务信息，包括batch_id
+            dict: Task information, including batch_id
         """
-        # 统计文件数量
+        # Count files
         file_count = 1
         if isinstance(files, list):
             file_count = len(files)
         config.logger.debug(
-            f"调用submit_file_task: {file_count}个文件, "
+            f"Calling submit_file_task: {file_count} files, "
             + f"ocr={enable_ocr}, "
             + f"language={language}"
         )
 
-        # 处理输入，确保我们有一个文件配置列表
+        # Process input, ensure we have a file config list
         files_config = []
 
-        # 转换输入为标准格式
+        # Convert input to standard format
         if isinstance(files, str):
-            # 单个文件路径
+            # Single file path
             file_path = Path(files)
             if not file_path.exists():
-                raise FileNotFoundError(f"未找到 File 文件: {file_path}")
+                raise FileNotFoundError(f"File not found: {file_path}")
 
             files_config.append(
                 {
@@ -274,13 +274,13 @@ class MinerUClient:
             )
 
         elif isinstance(files, list):
-            # 处理文件路径列表或文件配置列表
+            # Process file path list or file config list
             for i, file_item in enumerate(files):
                 if isinstance(file_item, str):
-                    # 简单的文件路径
+                    # Simple file path
                     file_path = Path(file_item)
                     if not file_path.exists():
-                        raise FileNotFoundError(f"未找到 File 文件: {file_path}")
+                        raise FileNotFoundError(f"File not found: {file_path}")
 
                     files_config.append(
                         {
@@ -292,16 +292,16 @@ class MinerUClient:
                     )
 
                 elif isinstance(file_item, dict):
-                    # 含有详细配置的文件字典
+                    # File dictionary with detailed config
                     if "path" not in file_item and "name" not in file_item:
                         raise ValueError(
-                            f"文件配置必须包含 'path' 或 'name' 字段: {file_item}"
+                            f"File config must contain 'path' or 'name' field: {file_item}"
                         )
 
                     if "path" in file_item:
                         file_path = Path(file_item["path"])
                         if not file_path.exists():
-                            raise FileNotFoundError(f"未找到 File 文件: {file_path}")
+                            raise FileNotFoundError(f"File not found: {file_path}")
 
                         file_name = file_path.name
                     else:
@@ -321,16 +321,16 @@ class MinerUClient:
 
                     files_config.append(file_config)
                 else:
-                    raise TypeError(f"不支持的文件配置类型: {type(file_item)}")
+                    raise TypeError(f"Unsupported file config type: {type(file_item)}")
         elif isinstance(files, dict):
-            # 单个文件配置字典
+            # Single file config dict
             if "path" not in files and "name" not in files:
-                raise ValueError(f"文件配置必须包含 'path' 或 'name' 字段: {files}")
+                raise ValueError(f"File config must contain 'path' or 'name' field: {files}")
 
             if "path" in files:
                 file_path = Path(files["path"])
                 if not file_path.exists():
-                    raise FileNotFoundError(f"未找到 File 文件: {file_path}")
+                    raise FileNotFoundError(f"File not found: {file_path}")
 
                 file_name = file_path.name
             else:
@@ -350,9 +350,9 @@ class MinerUClient:
 
             files_config.append(file_config)
         else:
-            raise TypeError(f"files 必须是字符串、列表或字典，而不是 {type(files)}")
+            raise TypeError(f"files must be string, list or dict, not {type(files)}")
 
-        # 步骤1: 构建API请求payload
+        # Step 1: Build API request payload
         files_payload = []
         for file_config in files_config:
             file_payload = {
@@ -368,57 +368,57 @@ class MinerUClient:
             "files": files_payload,
         }
 
-        # 步骤2: 获取文件上传URL
+        # Step 2: Get file upload URLs
         response = await self._request("POST", "/api/v4/file-urls/batch", json=payload)
 
-        # 检查响应
+        # Check response
         if (
             "data" not in response
             or "batch_id" not in response["data"]
             or "file_urls" not in response["data"]
         ):
-            raise ValueError(f"获取上传URL失败: {response}")
+            raise ValueError(f"Failed to get upload URLs: {response}")
 
         batch_id = response["data"]["batch_id"]
         file_urls = response["data"]["file_urls"]
 
         if len(file_urls) != len(files_config):
             raise ValueError(
-                f"上传URL数量 ({len(file_urls)}) 与文件数量 ({len(files_config)}) 不匹配"
+                f"Number of upload URLs ({len(file_urls)}) does not match number of files ({len(files_config)})"
             )
 
-        config.logger.info(f"开始上传 {len(file_urls)} 个本地文件")
-        config.logger.debug(f"获取上传URL成功，批次ID: {batch_id}")
+        config.logger.info(f"Starting upload of {len(file_urls)} local files")
+        config.logger.debug(f"Got upload URLs successfully, batch ID: {batch_id}")
 
-        # 步骤3: 上传所有文件
+        # Step 3: Upload all files
         uploaded_files = []
 
         for i, (file_config, upload_url) in enumerate(zip(files_config, file_urls)):
             file_path = file_config["path"]
             if file_path is None:
-                raise ValueError(f"文件 {file_config['name']} 没有有效的路径")
+                raise ValueError(f"File {file_config['name']} has no valid path")
 
             try:
                 with open(file_path, "rb") as f:
-                    # 重要：不设置Content-Type，让OSS自动处理
+                    # IMPORTANT: Do not set Content-Type, let OSS handle it
                     response = requests.put(upload_url, data=f)
 
                     if response.status_code != 200:
                         raise ValueError(
-                            f"文件上传失败，状态码: {response.status_code}, 响应: {response.text}"
+                            f"File upload failed, status code: {response.status_code}, response: {response.text}"
                         )
 
-                    config.logger.debug(f"文件 {file_path.name} 上传成功")
+                    config.logger.debug(f"File {file_path.name} uploaded successfully")
                     uploaded_files.append(file_path.name)
             except Exception as e:
-                raise ValueError(f"文件 {file_path.name} 上传失败: {str(e)}")
+                raise ValueError(f"File {file_path.name} upload failed: {str(e)}")
 
-        config.logger.info(f"文件上传完成，共 {len(uploaded_files)} 个文件")
+        config.logger.info(f"File upload completed, total {len(uploaded_files)} files")
 
-        # 返回包含batch_id的响应和已上传的文件信息
+        # Return response containing batch_id and uploaded files info
         result = {"data": {"batch_id": batch_id, "uploaded_files": uploaded_files}}
 
-        # 对于单个文件的情况，保持与原来返回格式的兼容性
+        # For single file case, keep compatibility with original return format
         if len(uploaded_files) == 1:
             result["data"]["file_name"] = uploaded_files[0]
 
@@ -426,13 +426,13 @@ class MinerUClient:
 
     async def get_batch_task_status(self, batch_id: str) -> Dict[str, Any]:
         """
-        获取批量转换任务的状态。
+        Get batch conversion task status.
 
         Args:
-            batch_id: 批量任务的ID
+            batch_id: Batch task ID
 
         Returns:
-            dict: 批量任务状态信息
+            dict: Batch task status info
         """
         response = await self._request(
             "GET", f"/api/v4/extract-results/batch/{batch_id}"
@@ -450,24 +450,24 @@ class MinerUClient:
         retry_interval: int = 10,
     ) -> Union[str, Dict[str, Any]]:
         """
-        从开始到结束处理 File 到 Markdown 的转换。
+        Process File to Markdown conversion from start to finish.
 
         Args:
-            task_fn: 提交任务的函数 (submit_file_url_task 或 submit_file_task)
-            task_arg: 任务函数的参数，可以是:
-                    - URL字符串
-                    - 文件路径字符串
-                    - 包含文件配置的字典
-                    - 包含多个文件配置的字典列表
-            enable_ocr: 是否启用 OCR
-            output_dir: 结果的输出目录
-            max_retries: 最大状态检查重试次数
-            retry_interval: 状态检查之间的时间间隔 (秒)
+            task_fn: Function to submit task (submit_file_url_task or submit_file_task)
+            task_arg: Argument for task function, can be:
+                    - URL string
+                    - File path string
+                    - Dictionary containing file config
+                    - List of dictionaries containing multiple file configs
+            enable_ocr: Whether to enable OCR
+            output_dir: Output directory for results
+            max_retries: Maximum retries for status check
+            retry_interval: Interval between status checks (seconds)
 
         Returns:
             Union[str, Dict[str, Any]]:
-                - 单文件: 包含提取的 Markdown 文件的目录路径
-                - 多文件: {
+                - Single file: Directory path containing extracted Markdown files
+                - Multiple files: {
                     "results": [
                         {
                             "filename": str,
@@ -480,45 +480,45 @@ class MinerUClient:
                 }
         """
         try:
-            # 提交任务 - 使用位置参数调用，而不是命名参数
+            # Submit task - call using positional args instead of named args
             task_info = await task_fn(task_arg, enable_ocr)
 
-            # 批量任务处理
+            # Batch task processing
             batch_id = task_info["data"]["batch_id"]
 
-            # 获取所有上传文件的名称
+            # Get names of all uploaded files
             uploaded_files = task_info["data"].get("uploaded_files", [])
             if not uploaded_files and "file_name" in task_info["data"]:
                 uploaded_files = [task_info["data"]["file_name"]]
 
             if not uploaded_files:
-                raise ValueError("无法获取上传文件的信息")
+                raise ValueError("Failed to get uploaded files info")
 
-            config.logger.debug(f"批量任务提交成功。Batch ID: {batch_id}")
+            config.logger.debug(f"Batch task submitted successfully. Batch ID: {batch_id}")
 
-            # 跟踪所有文件的处理状态
-            files_status = {}  # 将使用file_name作为键
+            # Track processing status of all files
+            files_status = {}  # Will use file_name as key
             files_download_urls = {}
-            failed_files = {}  # 记录失败的文件和错误信息
+            failed_files = {}  # Record failed files and error messages
 
-            # 准备输出路径
+            # Prepare output path
             output_path = config.ensure_output_dir(output_dir)
 
-            # 轮询任务完成情况
+            # Poll for task completion
             for i in range(max_retries):
                 status_info = await self.get_batch_task_status(batch_id)
 
-                config.logger.debug(f"轮训结果：{status_info}")
+                config.logger.debug(f"Polling result: {status_info}")
 
                 if (
                     "data" not in status_info
                     or "extract_result" not in status_info["data"]
                 ):
-                    config.logger.error(f"获取批量任务状态失败: {status_info}")
+                    config.logger.error(f"Failed to get batch task status: {status_info}")
                     await asyncio.sleep(retry_interval)
                     continue
 
-                # 检查所有文件的状态
+                # Check status of all files
                 all_done = True
                 has_progress = False
 
@@ -528,7 +528,7 @@ class MinerUClient:
                     if not file_name:
                         continue
 
-                    # 初始化状态，如果之前没有记录
+                    # Initialize status if not recorded before
                     if file_name not in files_status:
                         files_status[file_name] = "pending"
 
@@ -536,24 +536,24 @@ class MinerUClient:
                     files_status[file_name] = state
 
                     if state == "done":
-                        # 保存下载链接
+                        # Save download URL
                         full_zip_url = result.get("full_zip_url")
                         if full_zip_url:
                             files_download_urls[file_name] = full_zip_url
-                            config.logger.info(f"文件 {file_name} 处理完成")
+                            config.logger.info(f"File {file_name} processing completed")
                         else:
                             config.logger.debug(
-                                f"文件 {file_name} 标记为完成但没有下载链接"
+                                f"File {file_name} marked done but has no download link"
                             )
                             all_done = False
                     elif state in ["failed", "error"]:
-                        err_msg = result.get("err_msg", "未知错误")
+                        err_msg = result.get("err_msg", "Unknown error")
                         failed_files[file_name] = err_msg
-                        config.logger.warning(f"文件 {file_name} 处理失败: {err_msg}")
-                        # 不抛出异常，继续处理其他文件
+                        config.logger.warning(f"File {file_name} processing failed: {err_msg}")
+                        # Do not raise exception, continue processing other files
                     else:
                         all_done = False
-                        # 显示进度信息
+                        # Show progress info
                         if state == "running" and "extract_progress" in result:
                             has_progress = True
                             progress = result["extract_progress"]
@@ -562,78 +562,77 @@ class MinerUClient:
                             if total > 0:
                                 percent = (extracted / total) * 100
                                 config.logger.info(
-                                    f"处理进度: {file_name} "
-                                    + f"{extracted}/{total} 页 "
+                                    f"Processing progress: {file_name} "
+                                    + f"{extracted}/{total} pages "
                                     + f"({percent:.1f}%)"
                                 )
 
-                # 检查是否所有文件都已经处理完成
+                # Check if all files are processed
                 expected_file_count = len(uploaded_files)
                 processed_file_count = len(files_status)
                 completed_file_count = len(files_download_urls) + len(failed_files)
 
-                # 记录当前状态
+                # Log current status
                 config.logger.debug(
-                    f"文件处理状态: all_done={all_done}, "
-                    + f"files_status数量={processed_file_count}, "
-                    + f"上传文件数量={expected_file_count}, "
-                    + f"下载链接数量={len(files_download_urls)}, "
-                    + f"失败文件数量={len(failed_files)}"
+                    f"File processing status: all_done={all_done}, "
+                    + f"files_status_count={processed_file_count}, "
+                    + f"uploaded_files_count={expected_file_count}, "
+                    + f"download_urls_count={len(files_download_urls)}, "
+                    + f"failed_files_count={len(failed_files)}"
                 )
 
-                # 判断是否所有文件都已完成（包括成功和失败的）
+                # Determine if all files are finished (including success and failure)
                 if (
                     processed_file_count > 0
                     and processed_file_count >= expected_file_count
                     and completed_file_count >= processed_file_count
                 ):
                     if files_download_urls or failed_files:
-                        config.logger.info("文件处理完成")
+                        config.logger.info("File processing completed")
                         if failed_files:
                             config.logger.warning(
-                                f"有 {len(failed_files)} 个文件处理失败"
+                                f"{len(failed_files)} files processing failed"
                             )
                         break
                     else:
-                        # 这种情况不应该发生，但保险起见
+                        # This should not happen, but for safety
                         all_done = False
 
-                # 如果没有进度信息，只显示简单的等待消息
+                # If no progress info, only show simple waiting message
                 if not has_progress:
-                    config.logger.info(f"等待文件处理完成... ({i+1}/{max_retries})")
+                    config.logger.info(f"Waiting for files processing... ({i+1}/{max_retries})")
 
                 await asyncio.sleep(retry_interval)
             else:
-                # 如果超过最大重试次数，检查是否有部分文件完成
+                # If max retries exceeded, check if any files are done
                 if not files_download_urls and not failed_files:
-                    raise TimeoutError(f"批量任务 {batch_id} 未在允许的时间内完成")
+                    raise TimeoutError(f"Batch task {batch_id} did not complete within allowed time")
                 else:
                     config.logger.warning(
-                        "警告: 部分文件未在允许的时间内完成，" + "继续处理已完成的文件"
+                        "WARNING: Some files did not complete within allowed time, " + "continuing with completed files"
                     )
 
-            # 创建主提取目录
+            # Create main extraction directory
             extract_dir = output_path / batch_id
             extract_dir.mkdir(exist_ok=True)
 
-            # 准备结果列表
+            # Prepare results list
             results = []
 
-            # 下载并解压每个成功的文件的结果
+            # Download and extract results for each successful file
             for file_name, download_url in files_download_urls.items():
                 try:
-                    config.logger.debug
-                    (f"下载文件处理结果: {file_name}")
+                    config.logger.debug(f"Downloading file result: {file_name}")
 
-                    # 从下载URL中提取zip文件名作为子目录名
+                    # Extract zip filename from download URL as subdirectory name
                     zip_file_name = download_url.split("/")[-1]
-                    # 去掉.zip扩展名
+                    # Remove .zip extension
                     zip_dir_name = os.path.splitext(zip_file_name)[0]
 
                     file_extract_dir = extract_dir / zip_dir_name
                     file_extract_dir.mkdir(exist_ok=True)
 
-                    # 下载ZIP文件
+                    # Download ZIP file
                     zip_path = output_path / f"{batch_id}_{zip_file_name}"
 
                     async with aiohttp.ClientSession() as session:
@@ -645,21 +644,21 @@ class MinerUClient:
                             with open(zip_path, "wb") as f:
                                 f.write(await response.read())
 
-                    # 解压到子文件夹
+                    # Extract to subfolder
                     with zipfile.ZipFile(zip_path, "r") as zip_ref:
                         zip_ref.extractall(file_extract_dir)
 
-                    # 解压后删除ZIP文件
+                    # Delete ZIP file after extraction
                     zip_path.unlink()
 
-                    # 尝试读取Markdown内容
+                    # Try to read Markdown content
                     markdown_content = ""
                     markdown_files = list(file_extract_dir.glob("*.md"))
                     if markdown_files:
                         with open(markdown_files[0], "r", encoding="utf-8") as f:
                             markdown_content = f.read()
 
-                    # 添加成功结果
+                    # Add success result
                     results.append(
                         {
                             "filename": file_name,
@@ -670,13 +669,13 @@ class MinerUClient:
                     )
 
                     config.logger.debug(
-                        f"文件 {file_name} 的结果已解压到: {file_extract_dir}"
+                        f"Result for file {file_name} extracted to: {file_extract_dir}"
                     )
 
                 except Exception as e:
-                    # 下载失败，添加错误结果
-                    error_msg = f"下载结果失败: {str(e)}"
-                    config.logger.error(f"文件 {file_name} {error_msg}")
+                    # Download failed, add error result
+                    error_msg = f"Failed to download result: {str(e)}"
+                    config.logger.error(f"File {file_name} {error_msg}")
                     results.append(
                         {
                             "filename": file_name,
@@ -685,37 +684,37 @@ class MinerUClient:
                         }
                     )
 
-            # 添加处理失败的文件到结果
+            # Add failed files to results
             for file_name, error_msg in failed_files.items():
                 results.append(
                     {
                         "filename": file_name,
                         "status": "error",
-                        "error_message": f"处理失败: {error_msg}",
+                        "error_message": f"Processing failed: {error_msg}",
                     }
                 )
 
-            # 输出处理结果统计
+            # Output processing stats
             success_count = len(files_download_urls)
             fail_count = len(failed_files)
             total_count = success_count + fail_count
 
-            config.logger.info("\n=== 文件处理结果统计 ===")
-            config.logger.info(f"总文件数: {total_count}")
-            config.logger.info(f"成功处理: {success_count}")
-            config.logger.info(f"处理失败: {fail_count}")
+            config.logger.info("\n=== File Processing Stats ===")
+            config.logger.info(f"Total files: {total_count}")
+            config.logger.info(f"Success: {success_count}")
+            config.logger.info(f"Failed: {fail_count}")
 
             if failed_files:
-                config.logger.info("\n失败文件详情:")
+                config.logger.info("\nFailed files details:")
                 for file_name, error_msg in failed_files.items():
                     config.logger.info(f"  - {file_name}: {error_msg}")
 
             if success_count > 0:
-                config.logger.info(f"\n结果保存目录: {extract_dir}")
+                config.logger.info(f"\nResult saved to: {extract_dir}")
             else:
-                config.logger.info(f"\n输出目录: {extract_dir}")
+                config.logger.info(f"\nOutput directory: {extract_dir}")
 
-            # 返回详细结果
+            # Return detailed results
             return {
                 "results": results,
                 "extract_dir": str(extract_dir),
@@ -725,5 +724,5 @@ class MinerUClient:
             }
 
         except Exception as e:
-            config.logger.error(f"处理 File 到 Markdown 失败: {str(e)}")
+            config.logger.error(f"File to Markdown conversion failed: {str(e)}")
             raise
